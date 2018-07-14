@@ -1,0 +1,39 @@
+{
+  "name": "fbi-task-manage",
+  "version": "1.0.0",
+  "description": "Manage fbi templates and tasks, add/upadte/remove.",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [
+    "management",
+    "tasks",
+    "fbi-task",
+    "fbi"
+  ],
+  "author": "neikvon <neikvon@gmail.com> (https://github.com/neikvon)",
+  "license": "MIT",
+  "dependencies": {
+    "execa": "^0.10.0",
+    "inquirer": "^6.0.0",
+    "request": "^2.87.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fbi-templates/fbi-task-manage.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fbi-templates/fbi-task-manage/issues"
+  },
+  "homepage": "https://github.com/fbi-templates/fbi-task-manage#readme",
+  "fbi": {
+    "template": {
+      "name": "fbi-task-manage"
+    },
+    "tasks": {
+      "manage": {
+        "alias": "m"
+      }
+    }
+  }
+}
