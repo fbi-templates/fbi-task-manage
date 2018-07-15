@@ -2,129 +2,195 @@ const execa = require('execa')
 const request = require('request')
 const inquirer = require('inquirer')
 
-const stores = ctx ? ctx.stores : null
+const data = {
+  local: ctx.stores,
+  remote: null,
+  all: [],
+  hasInstalled: ctx.stores && Object.keys(ctx.stores).length > 0
+}
 
-function requestRemoteRepos () {
-  return new Promise((resolve, reject) => {
-    request(
-      {
-        url: 'https://api.github.com/users/fbi-templates/repos',
-        headers: {
-          'User-Agent': 'fbi-templates'
+function dataMerge (local, remote) {
+  if (remote) {
+    Object.keys(remote).map(r => {
+      const actions = []
+      const _local = local[remote[r].name]
+      if (_local) {
+        if (
+          _local.repo &&
+          (_local.repo.startsWith('http') || _local.repo.startsWith('git'))
+        ) {
+          actions.push('update')
         }
-      },
-      (error, response, body) => {
-        if (error) {
-          return reject(error)
-        }
-
-        if (response && response.statusCode === 200) {
-          resolve(body)
-        }
+        actions.push('remove')
+        _local['actions'] = actions
+        data.all.push(_local)
+      } else {
+        actions.push('add')
+        remote[r]['actions'] = actions
+        data.all.push(remote[r])
       }
-    )
+      delete local[remote[r].name]
+      delete remote[r]
+    })
+  }
+
+  const localKeys = Object.keys(local)
+  if (localKeys && localKeys.length) {
+    localKeys.map(l => {
+      const actions = ['remove']
+      if (local[l].repo) {
+        actions.unshift('update')
+      }
+      local[l]['actions'] = actions
+      data.all.push(local[l])
+      delete local[l]
+    })
+  }
+}
+
+function requestPromise (opts) {
+  return new Promise((resolve, reject) => {
+    request(opts, (error, response, body) => {
+      if (error) {
+        return reject(error)
+      }
+
+      if (response && response.statusCode === 200) {
+        resolve(body)
+      } else {
+        reject(
+          response && response.statusCode
+            ? response.statusCode
+            : 'request error'
+        )
+      }
+    })
   })
 }
 
-function getListChoices (repos) {
-  let hasInstalled = false
-  if (stores) {
-    for (let i = 0, len = repos.length; i < len; i++) {
-      if (stores[repos[i].name]) {
-        hasInstalled = true
-        break
-      }
+async function getRemotes () {
+  const timeout = 10 * 1000
+  try {
+    ctx.logger.log('Fetching remote templates...')
+    const ret = await requestPromise({
+      url: 'https://api.github.com/users/fbi-templates/repos',
+      headers: {
+        'User-Agent': 'fbi-templates'
+      },
+      timeout
+    })
+
+    try {
+      const parsed = JSON.parse(ret)
+      data.remote = {}
+      parsed.map(p => {
+        data.remote[p.name] = {
+          name: p.name,
+          fullname: p.name,
+          type: p.name.startsWith(ctx.configs.TEMPLATE_PREFIX)
+            ? 'project'
+            : 'task',
+          repo: p.clone_url,
+          description: p.description
+        }
+      })
+    } catch (err) {
+      ctx.logger.error('data invalid')
+    }
+  } catch (err) {
+    if (err.code === 'ESOCKETTIMEDOUT' || err.code === 'ETIMEDOUT') {
+      ctx.logger.error(`Request timeout (${timeout})`)
+    } else {
+      ctx.logger.error(err)
     }
   }
+}
 
-  const maxNameLength = repos.reduce(
-    (maxLength, repo) =>
-      (repo.name.length > maxLength ? repo.name.length : maxLength),
+function getListChoices (list) {
+  const maxNameLength = list.reduce(
+    (maxLength, item) =>
+      (item.name.length > maxLength ? item.name.length : maxLength),
     0
   )
 
-  return repos.map(repo => {
-    const empty = hasInstalled ? `           ` : ''
-    const status = stores && stores[repo.name] ? '(installed)' : empty
+  return list.map(item => {
+    const empty = data.hasInstalled ? `           ` : ''
+    const status = item.actions.includes('remove') ? '(installed)' : empty
     return {
-      name: `${repo.name.padEnd(maxNameLength, ' ')} ${status}   ${repo.desc}`,
-      value: repo.name
+      name: `${item.name.padEnd(maxNameLength, ' ')} ${status}   ${item.description}`,
+      value: item
     }
   })
 }
 
-async function addOrUpdate (repos) {
-  const answerList = await inquirer.prompt([
+async function doActions ({ items, action }) {
+  const options = action === 'remove' ? ' -f' : ''
+  const cmd = `fbi ${action}${options}`
+  let params = ''
+  items.map(async i => {
+    if (!i.actions.includes(action)) {
+      ctx.logger.warn(
+        `'${i.name}' only support '${i.actions.join(', ')}' action`
+      )
+    } else {
+      params += ` ${action === 'add' ? i.repo : i.name}`
+    }
+  })
+
+  if (params) {
+    ctx.logger.log(cmd + params)
+    return execa.shell(cmd + params, {
+      stdio: 'inherit'
+    })
+  }
+}
+
+async function listAll (all) {
+  console.log()
+  const answers = await inquirer.prompt([
     {
-      type: 'list',
-      name: 'repo',
-      message: 'Available templates (Choose one to continue)',
-      choices: getListChoices(repos)
+      type: 'checkbox',
+      name: 'items',
+      message: 'Available templates and tasks',
+      choices: getListChoices(all),
+      pageSize: 20
     },
     {
       type: 'list',
       name: 'action',
       message: 'Choose a action to continue',
-      choices: ['update', 'remove'],
-      when (answers) {
-        return stores[answers.repo]
-      }
-    },
-    {
-      type: 'list',
-      name: 'action',
-      message: 'Choose a action to continue',
-      choices: ['add'],
-      when (answers) {
-        return !stores[answers.repo]
+      choices: ['add', 'update', 'remove'],
+      when (a) {
+        return a.items && a.items.length > 0
       }
     }
   ])
 
-  const cmd = `fbi ${answerList.action} ${answerList.action === 'add' ? repos.find(r => r.name === answerList.repo).url : answerList.repo}`
-
-  await execa.shell(cmd, {
-    stdio: 'inherit'
-  })
-
-  return answerList.repo || ''
+  return answers
 }
 
-async function lsRemote () {
-  const repos = await requestRemoteRepos()
-  let reposParsed
-  try {
-    reposParsed = JSON.parse(repos)
-  } catch (err) {}
+async function manage () {
+  await getRemotes()
 
-  if (Array.isArray(reposParsed)) {
-    reposParsed = reposParsed.map(repo => {
-      return {
-        name: repo.name,
-        url: repo.clone_url,
-        desc: repo.description
-      }
-    })
+  ctx.logger.log('Finding local templates...')
+  dataMerge(data.local, data.remote)
+
+  if (data.all.length < 1) {
+    ctx.logger.error('Local templates not found')
+    process.exit(0)
   }
 
-  // concat local's
-  Object.keys(stores).map(s => {
-    if (!reposParsed.find(p => p.name === s)) {
-      reposParsed.push({
-        name: s,
-        url: stores[s].repository,
-        desc: stores[s].description,
-        local: true
-      })
-    }
-  })
-
   try {
-    await addOrUpdate(reposParsed)
+    const answers = await listAll(data.all)
+    if (answers && answers.items && answers.action) {
+      await doActions(answers)
+    } else {
+      ctx.logger.warn('Nothing to do')
+    }
   } catch (err) {
-    console.error(err)
+    ctx.logger.error(err)
     process.exit(1)
   }
 }
 
-module.exports = lsRemote
+module.exports = manage
