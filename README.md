@@ -1,11 +1,15 @@
 # fbi-task-manage
+
 Manage fbi templates and tasks, add/update/remove.
 
 > This is a fbi task. If you haven't installed [fbi](https://github.com/AlloyTeam/fbi) yet, use the following command to install.
 >
 > `$ npm i -g fbi` or `yarn global add fbi`
 
+<img src="./fbi-task-manage.gif">
+
 ## Requirements
+
 - `fbi v3.0+`
 - `node v7.6+`
 
@@ -30,12 +34,13 @@ $ fbi add https://github.com/fbi-templates/fbi-task-manage.git
 $ fbi manage
 ```
 
-
 ## More
+
 - [Official templates](https://github.com/fbi-templates)
 - [`fbi` documentation](https://neikvon.gitbooks.io/fbi/content/)
 
 ## License
+
 [MIT](https://opensource.org/licenses/MIT)
 
 ## [Changelog](https://github.com/fbi-templates/fbi-task-manage/blob/master/CHANGELOG.md)
