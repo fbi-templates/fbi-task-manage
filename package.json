@@ -1,6 +1,6 @@
 {
   "name": "fbi-task-manage",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Manage fbi templates and tasks, add/upadte/remove.",
   "main": "index.js",
   "scripts": {},
