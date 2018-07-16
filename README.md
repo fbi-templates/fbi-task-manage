@@ -25,6 +25,10 @@ Manage fbi templates and tasks, add/update/remove.
 **Install**
 
 ```bash
+# update fbi ('manage' task may have issues on fbi below v3.1)
+$ npm i -g fbi
+
+# add 'manage' task
 $ fbi add https://github.com/fbi-templates/fbi-task-manage.git
 ```
 
