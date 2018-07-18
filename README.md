@@ -47,4 +47,4 @@ $ fbi manage
 
 [MIT](https://opensource.org/licenses/MIT)
 
-## [Changelog](https://github.com/fbi-templates/fbi-task-manage/blob/master/CHANGELOG.md)
+## [Changelog](./CHANGELOG.md)
